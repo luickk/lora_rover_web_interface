@@ -1,0 +1,111 @@
+<html>
+   <head>
+  	<script src="jquery-3.4.1.min.js"></script>
+    <script src="osm/OpenLayers.js"></script>
+    <link rel="stylesheet" type="text/css" href="style.css">
+
+  	<script type = "text/javascript">
+    var ws;
+
+    var rover_lat;
+    var rover_lon;
+
+    var basestation_lat;
+    var basestation_lon;
+
+    var bool_msg_rvd=0;
+    function log_ui(text){
+  		$("#rx_buf").prepend( "<div style='border: solid;'><p>"+text+"</p> </div></br>" );
+  	}
+
+    function send_tx(){
+      ws.send($("#txt_area_tx").val());
+  	}
+
+    function parse_rx_lat(data){
+      var data_split = data.split(',');
+
+      return data_split[1].slice(5);
+    }
+
+    function parse_rx_lon(data){
+      var data_split = data.split(',');
+
+      return data_split[2].slice(5);
+    }
+
+    function parse_rx_dir(data){
+      var data_split = data.split(',');
+
+      return data_split[0].slice(5);
+    }
+
+    function close_conn() {
+      ws.close();
+    }
+
+  	function connect() {
+  		ws = new WebSocket("ws://192.168.3.11:9002/");
+
+      var zoom = 15;
+
+      var fromProjection = new OpenLayers.Projection("EPSG:4326");   // Transform from WGS 1984
+      var toProjection   = new OpenLayers.Projection("EPSG:900913"); // to Spherical Mercator Projection
+      map = new OpenLayers.Map("Map");
+      var mapnik         = new OpenLayers.Layer.OSM();
+      map.addLayer(mapnik);
+
+      var markers = new OpenLayers.Layer.Markers( "Markers" );
+      map.addLayer(markers);
+
+
+
+  		ws.onopen = function() {
+  			$("#connect_btn").fadeOut();
+  			ws.send("web-interface");
+  		};
+
+  		ws.onmessage = function (evt) {
+  		  var received_msg = evt.data;
+
+        rover_lat = parse_rx_lat(received_msg);
+        rover_lon = parse_rx_lon(received_msg);
+        rover_dir = parse_rx_dir(received_msg);
+
+        log_ui(received_msg);
+
+        // console.log('lat: ' + rover_lat);
+        // console.log('lon: ' + rover_lon);
+
+        var position = new OpenLayers.LonLat(rover_lon, rover_lat).transform( fromProjection, toProjection);
+        markers.addMarker(new OpenLayers.Marker(position));
+        map.setCenter(position, zoom);
+  		};
+
+  		ws.onclose = function() {
+  		  log_ui("con closed");
+  		};
+  	}
+  	</script>
+   </head>
+
+   <body>
+    <div class="split left" id="left_screen">
+      <button id="connect_btn" onclick="connect()">connect to basestation</button>
+      <br>
+      <br>
+      <br>
+      <textarea id="txt_area_tx"></textarea>
+      <br>
+      <br>
+      <button id="send" onclick="send_tx()">send to basestation</button>
+      <br>
+  	  <div id="rx_buf">
+  	  </div>
+    </div>
+    <div class="split right" id="right_screen">
+      <div id="Map" style="height:250px"></div>
+    </div>
+
+   </body>
+</html>
